@@ -1,0 +1,23 @@
+# Roblox
+.rojo-session.json
+*.rbxl
+*.rbxlx
+
+# Luau
+luau-analyze.json
+
+# General
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# VSCode
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Environment
+.env*
