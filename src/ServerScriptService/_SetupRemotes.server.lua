@@ -24,6 +24,11 @@ local remotesToCreate = {
     HideGameHud = "RemoteEvent",
     SelectMaze = "RemoteEvent",
     ShowWaypointDistance = "RemoteEvent",
+    PickupCrateRequest = "RemoteEvent",
+    PlaceCrateRequest = "RemoteEvent",
+    CrateStateChanged = "RemoteEvent",
+    UpdateBackpackUI = "RemoteEvent",
+    SelectItemRequest = "RemoteEvent",
 
     -- RemoteFunctions
     GetLeaderboard = "RemoteFunction"

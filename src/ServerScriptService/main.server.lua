@@ -6,12 +6,18 @@
 local ServerScriptService = game:GetService("ServerScriptService")
 local GameLoopService = require(ServerScriptService.Services.GameLoopService)
 local LeaderboardService = require(ServerScriptService.Services.LeaderboardService)
+local ItemService = require(ServerScriptService.Services.ItemService)
+local BackpackService = require(ServerScriptService.Services.BackpackService)
 
 -- Remotes
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage.Modules:WaitForChild("Remotes"))
 local SelectDifficultyEvent = Remotes.SelectDifficulty
 local GetLeaderboardFunction = Remotes.GetLeaderboard
+
+-- Start Services
+ItemService.start()
+BackpackService.start()
 
 -- Event Handlers
 SelectDifficultyEvent.OnServerEvent:Connect(function(player, difficulty)

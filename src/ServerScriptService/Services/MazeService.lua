@@ -2,9 +2,12 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
+
 local Configuration = require(ReplicatedStorage.Modules.Configuration)
 local Remotes = require(ReplicatedStorage.Modules.Remotes)
 local Waypoint = require(ReplicatedStorage.Modules.Waypoint)
+local ItemService = require(ServerScriptService.Services.ItemService)
 
 local MazeService = {}
 
@@ -17,7 +20,7 @@ end
 
 local CELL_SIZE = 12
 local WALL_THICKNESS = 2
-local WALL_HEIGHT = 15
+local WALL_HEIGHT = 13
 
 -- A table to prevent a single waypoint from being touched multiple times by the same player
 local playerWaypointDebounce = {}
@@ -293,12 +296,20 @@ function MazeService.generate(difficulty)
     end
     -- END: Waypoint Generation Logic
 
-    return {
+    local maze = {
         mazeModel = mazeModel,
+        grid = grid,
         startPosition = startPosition,
         exitPosition = exitPosition,
-        PlayerStartPoint = startPosition
+        PlayerStartPoint = startPosition,
+        widthInCells = mazeWidthCells,
+        depthInCells = mazeDepthCells,
+        cellSize = CELL_SIZE
     }
+
+    ItemService.spawnCratesInMaze(maze)
+
+    return maze
 end
 
 function MazeService.destroy(mazeModel)

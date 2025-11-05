@@ -1,0 +1,25 @@
+{
+    "ClassName": "Part",
+    "Properties": {
+        "Name": "Crate",
+        "Size": {
+            "X": 4,
+            "Y": 4,
+            "Z": 4
+        },
+        "Color": [
+            0.517647,
+            0.321569,
+            0.141176
+        ],
+        "Material": "Wood",
+        "Anchored": true,
+        "CustomPhysicalProperties": {
+            "Density": 2,
+            "Friction": 0.8,
+            "Elasticity": 0.1,
+            "FrictionWeight": 1,
+            "ElasticityWeight": 1
+        }
+    }
+}

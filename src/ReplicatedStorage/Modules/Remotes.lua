@@ -11,6 +11,9 @@ local Remotes = {
     PlayerFinishedMaze = RemotesFolder:WaitForChild("PlayerFinishedMaze"),
     RequestRetry = RemotesFolder:WaitForChild("RequestRetry"),
     RequestNewMaze = RemotesFolder:WaitForChild("RequestNewMaze"),
+    -- PickupCrateRequest is no longer used for touch pickup
+    PlaceCrateRequest = RemotesFolder:WaitForChild("PlaceCrateRequest"),
+    SelectItemRequest = RemotesFolder:WaitForChild("SelectItemRequest"),
 
     -- Server to Client
     UpdateHUD = RemotesFolder:WaitForChild("UpdateHUD"),
@@ -18,6 +21,8 @@ local Remotes = {
     TeleportToLobby = RemotesFolder:WaitForChild("TeleportToLobby"),
     ShowGameHud = RemotesFolder:WaitForChild("ShowGameHud"),
     ShowResults = RemotesFolder:WaitForChild("ShowResults"),
+    CrateStateChanged = RemotesFolder:WaitForChild("CrateStateChanged"),
+    UpdateBackpackUI = RemotesFolder:WaitForChild("UpdateBackpackUI"),
     
     -- Custom Events
     SelectMaze = RemotesFolder:WaitForChild("SelectMaze"),
