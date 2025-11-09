@@ -48,6 +48,23 @@ function GameLoopService.startPlayerSession(player, difficulty)
         warn("DEBUG: HumanoidRootPart not found in character. Cannot teleport.")
         return
     end
+    
+    -- Clear the player's backpack before starting
+    local backpack = player:FindFirstChildOfClass("Backpack")
+    if backpack then
+        backpack:ClearAllChildren()
+
+        -- Debug: Print backpack contents after clearing
+        print("DEBUG: Backpack contents after clearing:")
+        if #backpack:GetChildren() == 0 then
+            print("    (empty)")
+        else
+            for i, item in ipairs(backpack:GetChildren()) do
+                print("    " .. i .. ": " .. item.Name)
+            end
+        end
+    end
+    
     print("DEBUG: HumanoidRootPart found. Current position: " .. tostring(rootPart.Position))
     
     print("DEBUG: Attempting to teleport player to " .. tostring(mazeData.PlayerStartPoint))

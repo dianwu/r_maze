@@ -9,13 +9,11 @@ local Players = game:GetService("Players")
 local LevelSelectGui = require(ReplicatedStorage.UI.LevelSelectGui)
 local InGameHud = require(ReplicatedStorage.UI.InGameHud)
 local HintLogGui = require(ReplicatedStorage.UI.HintLogGui)
-local BackpackGui = require(ReplicatedStorage.UI.BackpackGui)
 local LevelSelectController = require(script.Parent.Controllers.LevelSelectController)
 local InGameHudController = require(script.Parent.Controllers.InGameHudController)
 local ResultsController = require(script.Parent.Controllers.ResultsController)
 local WaypointController = require(script.Parent.Controllers.WaypointController)
 local ItemController = require(script.Parent.Controllers.ItemController)
-local BackpackController = require(script.Parent.Controllers.BackpackController)
 
 -- Remotes
 local Remotes = require(ReplicatedStorage.Modules:WaitForChild("Remotes"))
@@ -27,7 +25,6 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- Create UIs
 local levelSelectGui = LevelSelectGui.create(playerGui)
 local hintLogGui = HintLogGui.create(playerGui)
-local backpackGui = BackpackGui.create(playerGui)
 
 -- Setup Controllers
 LevelSelectController.setup(levelSelectGui)
@@ -35,7 +32,6 @@ InGameHudController.start()
 ResultsController.start()
 WaypointController.start(hintLogGui)
 ItemController.start()
-BackpackController.setup(backpackGui)
 
 print("Client script is running.")
 
