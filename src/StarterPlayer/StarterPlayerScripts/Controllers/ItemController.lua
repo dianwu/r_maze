@@ -9,47 +9,65 @@
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-
-local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local Remotes = require(ReplicatedStorage.Modules.Remotes)
 local PlaceCrateRequest = Remotes.PlaceCrateRequest
 local CrateStateChanged = Remotes.CrateStateChanged
-local SelectItemRequest = Remotes.SelectItemRequest
-
-local BackpackController = require(script.Parent.BackpackController)
 
 local ItemController = {}
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
-local RunService = game:GetService("RunService")
-
-local carriedCrate = nil
+local equippedTool = nil
 local previewCrate = nil
 local placementModeActive = false
 local renderSteppedConnection = nil
 
 local function enterPlacementMode()
-    if not carriedCrate or placementModeActive then return end
+    if not equippedTool or placementModeActive then return end
+    
+    local handle = equippedTool:FindFirstChild("Handle")
+    if not handle then return end
+
     placementModeActive = true
 
     -- Create a preview crate
-    previewCrate = carriedCrate:Clone()
+    previewCrate = handle:Clone()
+    previewCrate.Size = Vector3.new(4, 4, 4) -- Set to final size for accurate preview
     previewCrate.Transparency = 0.5
     previewCrate.CanCollide = false
+    previewCrate.Anchored = true -- Anchor the preview so it doesn't fall
     previewCrate.Parent = workspace
 
-    -- Start updating its position
+    -- Remove any physics movers from the preview
+    for _, child in ipairs(previewCrate:GetChildren()) do
+        if child:IsA("BodyMover") then
+            child:Destroy()
+        end
+    end
+
+    -- Start updating its position to be in front of the player
     renderSteppedConnection = RunService.RenderStepped:Connect(function()
-        -- TODO: The raycast for the mouse's target can sometimes hit the local player's character,
-        -- causing the previewCrate to jump to a position right in front of the camera.
-        -- This can be fixed by adding the player's character to a RaycastParams filter.
-        local mouse = player:GetMouse()
-        local targetPosition = mouse.Hit.p
-        previewCrate.Position = targetPosition
+        if not previewCrate or not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        
+        local rootPart = character.HumanoidRootPart
+        local forwardVector = rootPart.CFrame.LookVector
+        local raycastOrigin = rootPart.Position + (forwardVector * 5) -- 5 studs in front
+        
+        -- Raycast down to find the ground
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {character, previewCrate}
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        
+        local raycastResult = workspace:Raycast(raycastOrigin, Vector3.new(0, -10, 0), raycastParams)
+        
+        local groundPosition = raycastResult and raycastResult.Position or (rootPart.Position - Vector3.new(0, 3, 0))
+        
+        -- Adjust the position to sit on top of the surface
+        local adjustedPosition = groundPosition + Vector3.new(0, previewCrate.Size.Y / 2, 0)
+        previewCrate.CFrame = CFrame.new(adjustedPosition)
     end)
 end
 
@@ -69,71 +87,76 @@ local function exitPlacementMode()
 end
 
 local function onInputBegan(input, gameProcessedEvent)
-    if gameProcessedEvent then return end
+    if gameProcessedEvent or not placementModeActive then return end
 
-    if placementModeActive then
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then -- Left click to place
-            print("CLIENT: Attempting to place crate via mouse click.")
-            local selectedSlotIndex = BackpackController.getSelectedSlotIndex()
-            if selectedSlotIndex and previewCrate then
-                PlaceCrateRequest:FireServer(previewCrate.Position, selectedSlotIndex)
-                BackpackController.clearSelection()
-                -- The server response will trigger the exitPlacementMode via onCrateStateChanged
-            end
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then -- Right click to cancel
-            print("CLIENT: Canceling placement mode.")
-            exitPlacementMode()
-            -- Optionally, tell the server to un-hold the item
-            local selectedSlotIndex = BackpackController.getSelectedSlotIndex()
-            if selectedSlotIndex then
-                Remotes.SelectItemRequest:FireServer(selectedSlotIndex) -- Re-selecting the same item will un-hold it
-                BackpackController.clearSelection()
-            end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then -- Left click to place
+        print("CLIENT: Attempting to place crate via mouse click.")
+        if previewCrate then
+            PlaceCrateRequest:FireServer(previewCrate.Position)
+        end
+    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then -- Right click to cancel
+        print("CLIENT: Canceling placement mode by unequipping.")
+        if equippedTool then
+            character.Humanoid:UnequipTools()
         end
     end
 end
 
-local function onCrateStateChanged(crate, action, targetPlayer)
+local function onCrateStateChanged(item, action, targetPlayer)
     if action == "pickup" then
-        -- This is just to hide the crate from the world, no change needed here
-        crate.Parent = nil
-    elseif action == "hold" then
-        if targetPlayer == player then
-            carriedCrate = crate
-            enterPlacementMode()
-        end
-    elseif action == "unhold" then
-        if targetPlayer == player and carriedCrate and crate == carriedCrate then
-            carriedCrate = nil
-            exitPlacementMode()
+        -- The tool is parented to the backpack on the server,
+        -- here we just destroy the floating world model of it.
+        local tool = item
+        if tool and tool:IsA("Tool") then
+             tool:Destroy()
         end
     elseif action == "place" then
-        if carriedCrate and crate == carriedCrate then
-            carriedCrate = nil
-            exitPlacementMode()
-        end
-        -- Make the placed crate visible for all players
-        local maze = workspace:FindFirstChild("MazeContainer")
-        local cratesModel = maze and maze:FindFirstChildOfClass("Model") and maze:FindFirstChildOfClass("Model"):FindFirstChild("Crates")
-        if cratesModel then
-            crate.Parent = cratesModel
-        else
-            crate.Parent = workspace -- Fallback
-        end
-        crate.Anchored = true
-        crate.CanCollide = true
-        crate.Transparency = 0
-        crate.Size = Vector3.new(5, 5, 5)
+        -- The server has placed the crate, which will be replicated automatically.
+        -- The only thing the client needs to do is exit its placement mode.
+        exitPlacementMode()
+        
+        -- The server is now responsible for parenting the placed crate.
+        -- The client no longer needs to manually handle this.
     end
+end
+
+local function onToolEquipped(tool)
+    if tool.Name == "CrateTool" then
+        equippedTool = tool
+        enterPlacementMode()
+    end
+end
+
+local function onToolUnequipped(tool)
+    if tool.Name == "CrateTool" then
+        equippedTool = nil
+        exitPlacementMode()
+    end
+end
+
+local function onCharacterAdded(newCharacter)
+    character = newCharacter
+    exitPlacementMode()
+    equippedTool = nil
+    
+    character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") and child.Name == "CrateTool" then
+            onToolEquipped(child)
+        end
+    end)
+    
+    character.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then
+            onToolUnequipped(child)
+        end
+    end)
 end
 
 function ItemController.start()
-    player.CharacterAdded:Connect(function(newCharacter)
-        character = newCharacter
-        humanoidRootPart = newCharacter:WaitForChild("HumanoidRootPart")
-        exitPlacementMode() -- Ensure placement mode is off on respawn
-        carriedCrate = nil
-    end)
+    player.CharacterAdded:Connect(onCharacterAdded)
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
 
     CrateStateChanged.OnClientEvent:Connect(onCrateStateChanged)
     UserInputService.InputBegan:Connect(onInputBegan)

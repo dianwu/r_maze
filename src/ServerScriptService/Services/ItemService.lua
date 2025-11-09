@@ -10,7 +10,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Remotes = require(ReplicatedStorage.Modules.Remotes)
-local BackpackService = require(ServerScriptService.Services.BackpackService)
 
 local ItemService = {}
 
@@ -21,7 +20,6 @@ local _playerCrates = {} -- [player] = crateInstance
 
 function ItemService.spawnCratesInMaze(maze)
     print("ItemService: Spawning crates in maze.")
-    
     local crateAsset = ASSET_FOLDER:FindFirstChild("Crate")
     if not crateAsset then
         -- This is a fallback for studio testing if the asset doesn't exist.
@@ -65,32 +63,45 @@ function ItemService.spawnCratesInMaze(maze)
         local xPos = (tile.x - 1) * maze.cellSize - halfMazeW + maze.cellSize / 2
         local zPos = (tile.y - 1) * maze.cellSize - halfMazeD + maze.cellSize / 2
         
-        local crate = crateAsset:Clone()
-        crate.Size = Vector3.new(2, 2, 2) -- Smaller size for floating crates
-        crate.Position = Vector3.new(xPos, crate.Size.Y / 2 + 2, zPos) -- Float slightly above ground
-        crate.Anchored = true
-        crate.CanCollide = false -- Players can walk through it to pick it up
-        crate.Transparency = 0.2 -- Make it slightly transparent
-        crate.Parent = cratesModel
+        local cratePart = crateAsset:Clone()
+
+        -- Remove any scripts that might be embedded in the asset
+        for _, child in ipairs(cratePart:GetDescendants()) do
+            if child:IsA("Script") or child:IsA("LocalScript") then
+                child:Destroy()
+            end
+        end
+        
+        cratePart.Name = "Handle"
+        cratePart.Size = Vector3.new(2, 2, 2) -- Smaller size for floating crates
+        cratePart.Position = Vector3.new(xPos, cratePart.Size.Y / 2 + 2, zPos) -- Float slightly above ground
+        cratePart.Anchored = true
+        cratePart.CanCollide = false -- Players can walk through it to pick it up
+        cratePart.Transparency = 0.2 -- Make it slightly transparent
+        
+        local tool = Instance.new("Tool")
+        tool.Name = "CrateTool"
+        tool.Parent = cratesModel
+        cratePart.Parent = tool
 
         -- Add floating effect
         local bodyPos = Instance.new("BodyPosition")
-        bodyPos.Position = crate.Position
+        bodyPos.Position = cratePart.Position
         bodyPos.D = 1000 -- Damping
         bodyPos.P = 10000 -- Proportional control
-        bodyPos.Parent = crate
+        bodyPos.Parent = cratePart
 
         -- Add rotation effect
         local bodyAngVel = Instance.new("BodyAngularVelocity")
         bodyAngVel.AngularVelocity = Vector3.new(0, 1, 0) -- Rotate around Y-axis
         bodyAngVel.P = 10000
-        bodyAngVel.Parent = crate
+        bodyAngVel.Parent = cratePart
 
         -- Connect Touched event for pickup
-        crate.Touched:Connect(function(hit)
+        cratePart.Touched:Connect(function(hit)
             local player = game.Players:GetPlayerFromCharacter(hit.Parent)
             if player then
-                ItemService.pickupCrate(player, crate)
+                ItemService.pickupCrate(player, tool)
             end
         end)
     end
@@ -98,94 +109,128 @@ function ItemService.spawnCratesInMaze(maze)
     print("ItemService: Spawned " .. numberOfCrates .. " crates.")
 end
 
-function ItemService.pickupCrate(player, crate)
-    -- Validation: Ensure the crate is a valid part and is in the workspace
-    if not crate or not crate:IsA("Part") or not crate:IsDescendantOf(workspace) then
+function ItemService.pickupCrate(player, tool)
+    -- Validation: Ensure the crate is a valid tool and is in the workspace
+    if not tool or not tool:IsA("Tool") or not tool:IsDescendantOf(workspace) then
         return
     end
 
-    -- Attempt to add to backpack
-    local success = BackpackService.addItemToBackpack(player, crate)
-    if success then
-        print("SERVER: Player " .. player.Name .. " picked up crate " .. crate.Name .. " and added to backpack.")
-        crate.Parent = nil -- Hide from workspace
-        Remotes.CrateStateChanged:FireAllClients(crate, "pickup", player) -- Notify clients it's gone from world
+    -- Clone the tool to give a unique copy to the player, then destroy the original
+    local toolClone = tool:Clone()
+
+    -- Clean up any physics movers and unanchor the handle from the tool before giving it to the player
+    local handle = toolClone:FindFirstChild("Handle")
+    if handle then
+        for _, child in ipairs(handle:GetChildren()) do
+            if child:IsA("BodyMover") then
+                child:Destroy()
+            end
+        end
+        handle.Anchored = false -- <--- 關鍵修正：解除錨定
+    end
+
+    local backpack = player:FindFirstChildOfClass("Backpack")
+    toolClone.Parent = backpack
+    
+    -- Debug: Print backpack contents after adding the crate
+    print("DEBUG: Backpack contents after adding " .. toolClone.Name .. ":")
+    if backpack then
+        local backpackItems = backpack:GetChildren()
+        if #backpackItems == 0 then
+            print("    (empty)")
+        else
+            for i, item in ipairs(backpackItems) do
+                print("    Slot " .. i .. ": " .. item.Name)
+            end
+        end
     else
-        warn("SERVER: Player " .. player.Name .. " could not pick up crate (backpack full or other issue).")
+        print("    (Backpack not found!)")
     end
+    
+    print("SERVER: Player " .. player.Name .. " picked up crate " .. tool.Name .. " and added to backpack.")
+    Remotes.CrateStateChanged:FireAllClients(tool, "pickup", player) -- Notify clients the original is gone
+    
+    tool:Destroy()
 end
 
-function ItemService.placeCrate(player, position, itemIndex)
-    local crate = _playerCrates[player]
-    if not crate then
-        warn("Player " .. player.Name .. " tried to place a crate but isn't carrying one.")
+function ItemService.placeCrate(player, position)
+    local character = player.Character
+    if not character then return end
+
+    -- The tool to be placed must be equipped (i.e., a child of the character)
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool or tool.Name ~= "CrateTool" then
+        warn("Player " .. player.Name .. " tried to place a crate but isn't holding one.")
         return
     end
 
-    -- Ensure the item being placed is the one currently held and is in the backpack
-    local backpackItems = BackpackService.getBackpack(player)
-    if not backpackItems[itemIndex] or backpackItems[itemIndex] ~= crate then
-        warn("Player " .. player.Name .. " tried to place a crate that is not currently held or not in backpack at that index.")
+    local handle = tool:FindFirstChild("Handle")
+    if not handle then
+        warn("CrateTool for player " .. player.Name .. " is missing its Handle.")
         return
     end
 
-    print("SERVER: Player " .. player.Name .. " placed crate " .. crate.Name .. " at " .. tostring(position))
-    _playerCrates[player] = nil
-    BackpackService.removeItemFromBackpack(player, itemIndex) -- Now, permanently remove from backpack
+        print("SERVER: Player " .. player.Name .. " placed crate " .. tool.Name .. " at " .. tostring(position))
+    
+        -- Get the player's current maze model from the GameLoopService
+        local GameLoopService = require(ServerScriptService.Services.GameLoopService)
+        local playerState = GameLoopService.getPlayerState(player)
+    
+        -- Clone the handle to break the weld to the player's character
+        local cratePart = handle:Clone()
+    
+        if not playerState or not playerState.mazeModel then
+            warn("Could not find a valid maze model for player " .. player.Name .. ". Placing crate in workspace as a fallback.")
+            cratePart.Parent = workspace
+        else
+            local cratesModel = playerState.mazeModel:FindFirstChild("Crates")
+            if not cratesModel then
+                warn("Could not find 'Crates' folder in the player's maze model. Creating one.")
+                cratesModel = Instance.new("Model")
+                cratesModel.Name = "Crates"
+                cratesModel.Parent = playerState.mazeModel
+            end
+            cratePart.Parent = cratesModel
+        end
+        
+        -- Set the properties of the newly placed crate part
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        local safeYPosition = rootPart and rootPart.Position.Y or position.Y
+        cratePart.CFrame = CFrame.new(position.X, safeYPosition, position.Z)
+        cratePart.Anchored = true -- 立即錨定，防止掉落
+        cratePart.CanCollide = true
+        cratePart.Transparency = 0
+        cratePart.Size = Vector3.new(4, 4, 4) -- Reset to original size
+    
+        -- Notify clients about the placed crate (which is the handle)
+        task.wait(0.05) -- Give replication a moment
+        Remotes.CrateStateChanged:FireAllClients(cratePart, "place", player)
+    
+        -- Destroy the tool from the player's inventory
+        tool:Destroy()end
 
-    -- Update crate properties and notify clients
-    crate.Anchored = false -- Let physics settle it
-    crate.CFrame = CFrame.new(position)
-    task.wait(0.5) -- Wait for it to settle
-    crate.Anchored = true -- Re-anchor after placing
 
-    Remotes.CrateStateChanged:FireAllClients(crate, "place", player)
-end
-
-function ItemService.selectCrate(player, itemIndex)
-    if _playerCrates[player] then
-        -- Player is already holding a crate, just un-hold it.
-        -- The client will handle putting it back visually.
-        local currentlyHeldCrate = _playerCrates[player]
-        _playerCrates[player] = nil
-        Remotes.CrateStateChanged:FireAllClients(currentlyHeldCrate, "unhold", player)
-        print("SERVER: Player " .. player.Name .. " unheld crate " .. currentlyHeldCrate.Name)
-    end
-
-    local backpackItems = BackpackService.getBackpack(player)
-    local crate = backpackItems[itemIndex]
-
-    if crate then
-        print("SERVER: Player " .. player.Name .. " selected crate " .. crate.Name .. " from backpack.")
-        _playerCrates[player] = crate
-        Remotes.CrateStateChanged:FireAllClients(crate, "hold", player)
-    else
-        warn("SERVER: Player " .. player.Name .. " tried to select non-existent item from backpack at index " .. itemIndex)
-    end
-end
 
 function ItemService.start()
     Remotes.PlaceCrateRequest.OnServerEvent:Connect(ItemService.placeCrate)
-    Remotes.SelectItemRequest.OnServerEvent:Connect(ItemService.selectCrate)
 
     game.Players.PlayerRemoving:Connect(function(player)
         -- Drop all items from the player's backpack when they leave
-        local backpackItems = BackpackService.getBackpack(player)
+        local backpack = player:FindFirstChildOfClass("Backpack")
+        if not backpack then return end
+
         local character = player.Character
         local dropPos = character and character:GetPrimaryPartCFrame().Position or Vector3.new(0, 5, 0)
 
-        for i = #backpackItems, 1, -1 do -- Iterate backwards to safely remove items
-            local crateToDrop = BackpackService.removeItemFromBackpack(player, i)
-            if crateToDrop then
-                -- Make the crate visible and anchored in the world
-                crateToDrop.Parent = workspace.MazeContainer:FindFirstChildOfClass("Model"):FindFirstChild("Crates") or workspace
-                crateToDrop.Anchored = true
-                crateToDrop.CanCollide = true
-                crateToDrop.Transparency = 0
-                crateToDrop.Size = Vector3.new(4, 4, 4) -- Reset to original size
-                crateToDrop.CFrame = CFrame.new(dropPos) -- Place at player's last position
-                Remotes.CrateStateChanged:FireAllClients(crateToDrop, "place", nil) -- Notify clients it's back in world
-            end
+        for _, crateToDrop in ipairs(backpack:GetChildren()) do
+            -- Make the crate visible and anchored in the world
+            crateToDrop.Parent = workspace.MazeContainer:FindFirstChildOfClass("Model"):FindFirstChild("Crates") or workspace
+            crateToDrop.Anchored = true
+            crateToDrop.CanCollide = true
+            crateToDrop.Transparency = 0
+            crateToDrop.Size = Vector3.new(4, 4, 4) -- Reset to original size
+            crateToDrop.CFrame = CFrame.new(dropPos) -- Place at player's last position
+            Remotes.CrateStateChanged:FireAllClients(crateToDrop, "place", nil) -- Notify clients it's back in world
         end
         _playerCrates[player] = nil -- Clear any actively held item
     end)
