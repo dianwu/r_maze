@@ -19,8 +19,8 @@ local Remotes = {
     UpdateHUD = RemotesFolder:WaitForChild("UpdateHUD"),
     ShowNotification = RemotesFolder:WaitForChild("ShowNotification"),
     TeleportToLobby = RemotesFolder:WaitForChild("TeleportToLobby"),
-    ShowGameHud = RemotesFolder:WaitForChild("ShowGameHud"),
-    ShowResults = RemotesFolder:WaitForChild("ShowResults"),
+    EnterMaze = RemotesFolder:WaitForChild("EnterMaze"),
+    DisplayResults = RemotesFolder:WaitForChild("DisplayResults"),
     CrateStateChanged = RemotesFolder:WaitForChild("CrateStateChanged"),
     UpdateBackpackUI = RemotesFolder:WaitForChild("UpdateBackpackUI"),
     
@@ -32,7 +32,7 @@ local Remotes = {
     GetLeaderboard = RemotesFolder:WaitForChild("GetLeaderboard"),
     
     -- Other Events
-    HideGameHud = RemotesFolder:WaitForChild("HideGameHud")
+    ExitMaze = RemotesFolder:WaitForChild("ExitMaze")
 }
 
 return Remotes

@@ -37,7 +37,7 @@ function ResultsController.start()
         ResultsController.hide()
     end)
 
-    Remotes.ShowResults.OnClientEvent:Connect(ResultsController.show)
+    -- Remote event connection is now handled by main.client.lua
     print("ResultsController started")
 end
 

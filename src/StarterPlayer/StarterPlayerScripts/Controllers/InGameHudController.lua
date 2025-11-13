@@ -6,6 +6,7 @@ local Remotes = require(ReplicatedStorage.Modules.Remotes)
 local InGameHudUI = require(ReplicatedStorage.UI.InGameHud)
 
 local InGameHudController = {}
+InGameHudController.OnExitTouched = Instance.new("BindableEvent")
 
 local hudInstance
 local timerConnection
@@ -82,6 +83,8 @@ function InGameHudController.onExitTouched(otherPart)
             touchConnection:Disconnect()
             touchConnection = nil
         end
+        
+        InGameHudController.OnExitTouched:Fire() -- Fire the event for the coordinator
         Remotes.PlayerFinishedMaze:FireServer()
     end
 end
@@ -122,9 +125,8 @@ end
 function InGameHudController.start()
     hudInstance = InGameHudUI.create(player.PlayerGui)
     hudInstance.Enabled = false
-
-    Remotes.ShowGameHud.OnClientEvent:Connect(InGameHudController.show)
-    Remotes.HideGameHud.OnClientEvent:Connect(InGameHudController.hide)
+    
+    -- Remote event connections are now handled by main.client.lua
     
     print("InGameHudController started")
 end

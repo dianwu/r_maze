@@ -14,6 +14,7 @@ local InGameHudController = require(script.Parent.Controllers.InGameHudControlle
 local ResultsController = require(script.Parent.Controllers.ResultsController)
 local WaypointController = require(script.Parent.Controllers.WaypointController)
 local ItemController = require(script.Parent.Controllers.ItemController)
+local AudioController = require(script.Parent.Controllers.AudioController) -- 1. Load the new controller
 
 -- Remotes
 local Remotes = require(ReplicatedStorage.Modules:WaitForChild("Remotes"))
@@ -32,8 +33,33 @@ InGameHudController.start()
 ResultsController.start()
 WaypointController.start(hintLogGui)
 ItemController.start()
+AudioController.start() -- 2. Start the new controller
 
 print("Client script is running.")
+
+-- 3. Centralized Event Handling (Coordinator Logic)
+Remotes.EnterMaze.OnClientEvent:Connect(function(mazeModel, exitPosition)
+    print("Coordinator: EnterMaze received. Starting game...")
+    InGameHudController.show(mazeModel, exitPosition)
+    AudioController.playBackgroundMusic()
+end)
+
+Remotes.ExitMaze.OnClientEvent:Connect(function()
+    print("Coordinator: ExitMaze received.")
+    InGameHudController.hide()
+end)
+
+Remotes.DisplayResults.OnClientEvent:Connect(function(completionTime)
+    print("Coordinator: DisplayResults received. Ending game...")
+    ResultsController.show(completionTime)
+    AudioController.stopBackgroundMusic()
+end)
+
+InGameHudController.OnExitTouched.Event:Connect(function()
+    print("Coordinator: OnExitTouched received from InGameHudController.")
+    AudioController.playExitSound()
+end)
+
 
 -- Add a trail effect to the player's character
 local function addTrailEffect(character)

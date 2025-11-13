@@ -72,7 +72,7 @@ function GameLoopService.startPlayerSession(player, difficulty)
     print("DEBUG: Teleport CFrame set. New position should be " .. tostring(rootPart.Position))
 
     -- Pass the specific maze model to the client
-    Remotes.ShowGameHud:FireClient(player, mazeData.mazeModel, mazeData.exitPosition)
+    Remotes.EnterMaze:FireClient(player, mazeData.mazeModel, mazeData.exitPosition)
     print("GameLoopService: Player " .. player.Name .. " started maze of difficulty " .. difficulty)
 end
 
@@ -104,8 +104,8 @@ function GameLoopService.onPlayerFinishedMaze(player)
         state.State = "Results"
         state.LastCompletionTime = elapsedTime
         
-        Remotes.HideGameHud:FireClient(player)
-        Remotes.ShowResults:FireClient(player, elapsedTime)
+        Remotes.ExitMaze:FireClient(player)
+        Remotes.DisplayResults:FireClient(player, elapsedTime)
     end
 end
 
@@ -125,7 +125,8 @@ function GameLoopService.onRequestRetry(player)
             end
         end
         
-        Remotes.ShowGameHud:FireClient(player, state.mazeModel.exitPosition)
+        -- Correctly fire the event with both the model and the exit position
+        Remotes.EnterMaze:FireClient(player, state.mazeModel, state.mazeModel.ExitPart.Position)
     end
 end
 
