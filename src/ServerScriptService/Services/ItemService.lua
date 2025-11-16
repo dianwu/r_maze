@@ -202,6 +202,12 @@ function ItemService.placeCrate(player, position)
         cratePart.Transparency = 0
         cratePart.Size = Vector3.new(4, 4, 4) -- Reset to original size
     
+        -- Explicitly remove the "Wall" tag, just in case the asset has it by mistake
+        local CollectionService = game:GetService("CollectionService")
+        if CollectionService:HasTag(cratePart, "Wall") then
+            CollectionService:RemoveTag(cratePart, "Wall")
+        end
+
         -- Notify clients about the placed crate (which is the handle)
         task.wait(0.05) -- Give replication a moment
         Remotes.CrateStateChanged:FireAllClients(cratePart, "place", player)

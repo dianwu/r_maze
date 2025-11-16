@@ -3,11 +3,12 @@
 
 local AudioController = {}
 
-local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
 
 -- Find sound objects. Using WaitForChild is robust against replication timing issues.
-local backgroundMusic = Workspace:WaitForChild("Escape The Maze", 10)
-local exitSound = Workspace:WaitForChild("Running Faster B", 10)
+local bgm = SoundService:WaitForChild("bgm", 10)
+local backgroundMusic = bgm:WaitForChild("Escape The Maze", 10)
+local exitSound = bgm:WaitForChild("Running Faster B", 10)
 
 function AudioController.playBackgroundMusic()
     if exitSound and exitSound.IsPlaying then

@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
+local CollectionService = game:GetService("CollectionService")
 
 local Configuration = require(ReplicatedStorage.Modules.Configuration)
 local Remotes = require(ReplicatedStorage.Modules.Remotes)
@@ -26,14 +27,56 @@ local WALL_HEIGHT = 13
 local playerWaypointDebounce = {}
 
 local function createWall(size, position, parent)
+    -- Create a model to hold the wall and its anti-climb part
+    local wallModel = Instance.new("Model")
+    wallModel.Name = "WallSegment"
+    wallModel.Parent = parent
+
+    -- Main wall part
     local wall = Instance.new("Part")
+    wall.Name = "Wall"
     wall.Size = size
     wall.Position = position
     wall.Anchored = true
-    wall.Parent = parent
+    wall.Parent = wallModel
     wall.BrickColor = BrickColor.new("Medium stone grey")
     wall.Material = Enum.Material.Concrete
-    return wall
+    CollectionService:AddTag(wall, "Wall")
+
+    -- A single rotated part to create a "peak" on top
+    local antiClimbPart = Instance.new("Part")
+    antiClimbPart.Name = "AntiClimbPeak"
+    antiClimbPart.Anchored = true
+    antiClimbPart.Transparency = 0
+    antiClimbPart.CustomPhysicalProperties = PhysicalProperties.new(Enum.Material.Ice) -- Make it extremely slippery
+    antiClimbPart.CanCollide = true
+    antiClimbPart.CanQuery = false
+    antiClimbPart.TopSurface = Enum.SurfaceType.Smooth
+    antiClimbPart.BottomSurface = Enum.SurfaceType.Smooth
+    antiClimbPart.Parent = wallModel
+
+    local topY = position.Y + (size.Y / 2) -- 主牆頂部的絕對 Y 座標
+
+    -- 旋轉 45 度後，Part 的對角線會變成其新的「高度」和「寬度」。
+    -- 我們需要確保旋轉後的底部寬度與 WALL_THICKNESS 相同。
+    -- 因此，原始尺寸應該是 WALL_THICKNESS / math.sqrt(2)。
+    local originalCrossSectionSize = WALL_THICKNESS / math.sqrt(2)
+
+    -- antiClimbPart 中心點的 Y 座標，使其底部與 topY 對齊
+    -- 旋轉後的有效高度是 originalCrossSectionSize * math.sqrt(2) = WALL_THICKNESS
+    local antiClimbCenterY = topY
+
+    if size.X > size.Z then -- 牆壁是水平的 (X 軸較長)
+        antiClimbPart.Size = Vector3.new(size.X, originalCrossSectionSize, originalCrossSectionSize)
+        -- 繞 X 軸旋轉
+        antiClimbPart.CFrame = CFrame.new(position.X, antiClimbCenterY, position.Z) * CFrame.Angles(math.rad(45), 0, 0)
+    else -- 牆壁是垂直的 (Z 軸較長)
+        antiClimbPart.Size = Vector3.new(originalCrossSectionSize, originalCrossSectionSize, size.Z)
+        -- 繞 Z 軸旋轉
+        antiClimbPart.CFrame = CFrame.new(position.X, antiClimbCenterY, position.Z) * CFrame.Angles(0, 0, math.rad(45))
+    end
+
+    return wallModel
 end
 
 local function findFurthestPoint(grid, startX, startY)
