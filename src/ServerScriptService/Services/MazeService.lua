@@ -47,13 +47,15 @@ local function createWall(size, position, parent)
     local antiClimbPart = Instance.new("Part")
     antiClimbPart.Name = "AntiClimbPeak"
     antiClimbPart.Anchored = true
-    antiClimbPart.Transparency = 0
-    antiClimbPart.CustomPhysicalProperties = PhysicalProperties.new(Enum.Material.Ice) -- Make it extremely slippery
+    antiClimbPart.Transparency = 1
+    -- Density=0.7, Friction=0(無摩擦), Elasticity=0(無彈性), FrictionWeight=100(絕對優先), ElasticityWeight=1(默認)
+    antiClimbPart.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0, 0, 100, 1) 
     antiClimbPart.CanCollide = true
     antiClimbPart.CanQuery = false
     antiClimbPart.TopSurface = Enum.SurfaceType.Smooth
     antiClimbPart.BottomSurface = Enum.SurfaceType.Smooth
     antiClimbPart.Parent = wallModel
+    CollectionService:AddTag(antiClimbPart, "Wall")
 
     local topY = position.Y + (size.Y / 2) -- 主牆頂部的絕對 Y 座標
 

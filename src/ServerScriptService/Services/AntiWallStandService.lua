@@ -1,8 +1,7 @@
 --!strict
 --[[
     @class AntiWallStandService
-    Prevents players from standing on parts tagged with "Wall" by teleporting them
-    to their last known safe position.
+    Prevents players from standing on parts tagged with "Wall" by applying a physical push force.
 ]]
 
 local Players = game:GetService("Players")
@@ -11,11 +10,8 @@ local RunService = game:GetService("RunService")
 
 local AntiWallStandService = {}
 
-local RAY_DIRECTION = Vector3.new(0, -4, 0) -- Raycast downwards to detect the ground
-local SAFE_GROUND_UPDATE_INTERVAL = 0.5 -- How often to update the player's safe position (in seconds)
-
-local lastSafePositions = {}
-local lastCheckTime = {}
+local RAY_DIRECTION = Vector3.new(0, -5, 0) -- Raycast downwards
+local PUSH_FORCE = 80 -- Adjust force magnitude
 
 -- Check if the player is standing on a wall
 function AntiWallStandService.checkPlayer(player: Player)
@@ -38,19 +34,36 @@ function AntiWallStandService.checkPlayer(player: Player)
 
     if result and result.Instance then
         if CollectionService:HasTag(result.Instance, "Wall") then
-            -- Player is on a wall, teleport them back to their last safe position
-            local safePosition = lastSafePositions[player]
-            if safePosition then
-                print("DEBUG: Player " .. player.Name .. " detected on wall. Teleporting back.")
-                rootPart.CFrame = CFrame.new(safePosition)
+            -- Player is on a wall, apply a push force
+            local wallPart = result.Instance
+            
+            -- Determine push direction: away from the center of the wall part
+            -- We use the object space relative position to decide left/right or forward/back
+            local relPos = wallPart.CFrame:PointToObjectSpace(rootPart.Position)
+            local pushDir = Vector3.new(0, 0, 0)
+
+            if math.abs(relPos.X) > math.abs(relPos.Z) then
+                -- Push along X axis of the part (local X)
+                pushDir = wallPart.CFrame.RightVector * math.sign(relPos.X)
+            else
+                -- Push along Z axis of the part (local Z)
+                pushDir = wallPart.CFrame.LookVector * math.sign(relPos.Z)
             end
-        else
-            -- Player is on safe ground, update their last safe position periodically
-            local now = os.clock()
-            if not lastCheckTime[player] or (now - lastCheckTime[player] > SAFE_GROUND_UPDATE_INTERVAL) then
-                lastCheckTime[player] = now
-                lastSafePositions[player] = rootPart.Position
+            
+            -- If standing dead center, pick a random direction
+            if pushDir.Magnitude < 0.1 then
+                pushDir = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5).Unit
             end
+            
+            -- Flatten to horizontal plane and normalize
+            pushDir = Vector3.new(pushDir.X, 0, pushDir.Z).Unit
+
+            -- Apply impulse
+            local impulse = pushDir * rootPart.AssemblyMass * PUSH_FORCE
+            rootPart:ApplyImpulse(impulse)
+            
+            -- Optional: Make them jump/trip to break friction
+            -- humanoid.Jump = true 
         end
     end
 end
@@ -61,12 +74,6 @@ function AntiWallStandService.start()
         for _, player in ipairs(Players:GetPlayers()) do
             AntiWallStandService.checkPlayer(player)
         end
-    end)
-
-    Players.PlayerRemoving:Connect(function(player)
-        -- Clean up memory when a player leaves
-        lastSafePositions[player] = nil
-        lastCheckTime[player] = nil
     end)
 end
 
